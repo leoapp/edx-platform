@@ -227,7 +227,9 @@ class TestFooter(TestCase):
     @ddt.unpack
     def test_include_language_selector(self, theme, language, include_language_selector):
         self._set_feature_flag(True)
-        DarkLangConfig(released_languages='en,eo,es-419,fr', enabled=True, changed_by=User().save()).save()
+        dark_lang_config = DarkLangConfig(released_languages='en,eo,es-419,fr', enabled=True, changed_by=User().save())
+        dark_lang_config.save()
+        self.addCleanup(dark_lang_config.delete)
 
         with with_comprehensive_theme_context(theme):
             params = {

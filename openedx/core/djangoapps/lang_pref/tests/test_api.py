@@ -76,11 +76,13 @@ class LanguageApiTest(TestCase):
         with override_settings(LANGUAGES=languages, LANGUAGE_CODE=default_lang):
             user = User()
             user.save()
-            DarkLangConfig(
+            dark_lang_config = DarkLangConfig(
                 released_languages=', '.join(dark_lang_released),
                 changed_by=user,
                 enabled=True
-            ).save()
+            )
+            dark_lang_config.save()
+            self.addCleanup(dark_lang_config.delete)
             released_languages = language_api.released_languages()
             self.assertEqual(released_languages, expected_languages)
 

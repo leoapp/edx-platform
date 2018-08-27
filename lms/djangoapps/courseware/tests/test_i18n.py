@@ -48,11 +48,13 @@ class BaseI18nTestCase(TestCase):
         """
         user = User()
         user.save()
-        DarkLangConfig(
+        dark_lang_config = DarkLangConfig(
             released_languages=languages,
             changed_by=user,
             enabled=True
-        ).save()
+        )
+        dark_lang_config.save()
+        self.addCleanup(dark_lang_config.delete)
 
     def create_user(self):
         """

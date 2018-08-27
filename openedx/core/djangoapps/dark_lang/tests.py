@@ -42,6 +42,7 @@ class DarkLangMiddlewareTests(TestCase):
             changed_by=self.user,
             enabled=True
         ).save()
+        self.addCleanup(DarkLangConfig.objects.all().delete)
 
     def process_middleware_request(self, language_session_key=UNSET, accept=UNSET):
         """

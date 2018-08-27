@@ -1166,7 +1166,9 @@ class CertificatesViewsTests(CommonCertificatesTestCase):
         Tests custom template search and rendering.
         This test should check template matching when org={org}, course={course}, mode={mode}.
         """
-        DarkLangConfig(released_languages='es-419, fr', changed_by=self.user, enabled=True).save()
+        dark_lang_config = DarkLangConfig(released_languages='es-419, fr', changed_by=self.user, enabled=True)
+        dark_lang_config.save()
+        self.addCleanup(dark_lang_config.delete)
 
         right_language = 'es'
         wrong_language = 'fr'
@@ -1242,7 +1244,9 @@ class CertificatesViewsTests(CommonCertificatesTestCase):
         match org and mode.
         This test should check template matching when org={org}, course=Null, mode={mode}.
         """
-        DarkLangConfig(released_languages='es-419, fr', changed_by=self.user, enabled=True).save()
+        dark_lang_config = DarkLangConfig(released_languages='es-419, fr', changed_by=self.user, enabled=True)
+        dark_lang_config.save()
+        self.addCleanup(dark_lang_config.delete)
 
         right_language = 'es'
         wrong_language = 'fr'
@@ -1300,7 +1304,9 @@ class CertificatesViewsTests(CommonCertificatesTestCase):
         Tests custom template search when we have a single template for a organization.
         This test should check template matching when org={org}, course=Null, mode=null.
         """
-        DarkLangConfig(released_languages='es-419, fr', changed_by=self.user, enabled=True).save()
+        dark_lang_config = DarkLangConfig(released_languages='es-419, fr', changed_by=self.user, enabled=True)
+        dark_lang_config.save()
+        self.addCleanup(dark_lang_config.delete)
 
         right_language = 'es'
         wrong_language = 'fr'
@@ -1357,7 +1363,9 @@ class CertificatesViewsTests(CommonCertificatesTestCase):
         Tests custom template search if we have a single template for a course mode.
         This test should check template matching when org=null, course=Null, mode={mode}.
         """
-        DarkLangConfig(released_languages='es-419, fr', changed_by=self.user, enabled=True).save()
+        dark_lang_config = DarkLangConfig(released_languages='es-419, fr', changed_by=self.user, enabled=True)
+        dark_lang_config.save()
+        self.addCleanup(dark_lang_config.delete)
 
         right_language = 'es'
         wrong_language = 'fr'
@@ -1418,7 +1426,9 @@ class CertificatesViewsTests(CommonCertificatesTestCase):
         Tests custom template search if we have a single template for a course mode.
         This test should check template matching when org=null, course=Null, mode={mode}.
         """
-        DarkLangConfig(released_languages='es-419, fr', changed_by=self.user, enabled=True).save()
+        dark_lang_config = DarkLangConfig(released_languages='es-419, fr', changed_by=self.user, enabled=True)
+        dark_lang_config.save()
+        self.addCleanup(dark_lang_config.delete)
 
         right_language = 'es'
         wrong_language = 'fr'

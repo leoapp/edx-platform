@@ -300,7 +300,9 @@ class CourseOverviewTestCase(CatalogIntegrationMixin, ModuleStoreTestCase):
     )
     @ddt.unpack
     def test_closest_released_language(self, released_languages, course_language, expected_language):
-        DarkLangConfig(released_languages=released_languages, enabled=True, changed_by=self.user).save()
+        dark_lang_config = DarkLangConfig(released_languages=released_languages, enabled=True, changed_by=self.user)
+        dark_lang_config.save()
+        self.addCleanup(dark_lang_config.delete)
         course_overview = CourseOverviewFactory.create(language=course_language)
         self.assertEqual(course_overview.closest_released_language, expected_language)
 
