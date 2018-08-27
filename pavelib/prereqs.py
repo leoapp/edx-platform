@@ -132,7 +132,7 @@ def node_prereqs_installation():
         npm_log_file = '{}/npm-install.{}.log'.format(Env.GEN_LOG_DIR, shard_str)
     else:
         npm_log_file = '{}/npm-install.log'.format(Env.GEN_LOG_DIR)
-    npm_command = 'npm install --verbose |tee {}'.format(npm_log_file)
+    npm_command = 'npm install --progress=false --verbose &> {}'.format(npm_log_file)
 
     cb_error_text = "Subprocess return code: 1"
 
