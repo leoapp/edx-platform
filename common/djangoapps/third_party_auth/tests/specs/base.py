@@ -30,216 +30,12 @@ from third_party_auth import middleware, pipeline
 from third_party_auth.tests import testutil
 
 
-class IntegrationTestMixin(object):
+class HelperMixin(object):
     """
-    Mixin base class for third_party_auth integration tests.
-    This class is newer and simpler than the 'IntegrationTest' alternative below, but it is
-    currently less comprehensive. Some providers are tested with this, others with
-    IntegrationTest.
+    Contains helper methods for IntegrationTestMixin and IntegrationTest classes below.
     """
-    # Provider information:
-    PROVIDER_NAME = "override"
-    PROVIDER_BACKEND = "override"
-    PROVIDER_ID = "override"
-    # Information about the user expected from the provider:
-    USER_EMAIL = "override"
-    USER_NAME = "override"
-    USER_USERNAME = "override"
 
-    def setUp(self):
-        super(IntegrationTestMixin, self).setUp()
-        self.login_page_url = reverse('signin_user')
-        self.register_page_url = reverse('register_user')
-        patcher = testutil.patch_mako_templates()
-        patcher.start()
-        self.addCleanup(patcher.stop)
-        # Override this method in a subclass and enable at least one provider.
-
-    def test_register(self, **extra_defaults):
-        # The user goes to the register page, and sees a button to register with the provider:
-        provider_register_url = self._check_register_page()
-        # The user clicks on the Dummy button:
-        try_login_response = self.client.get(provider_register_url)
-        # The user should be redirected to the provider's login page:
-        self.assertEqual(try_login_response.status_code, 302)
-        provider_response = self.do_provider_login(try_login_response['Location'])
-        # We should be redirected to the register screen since this account is not linked to an edX account:
-        self.assertEqual(provider_response.status_code, 302)
-        self.assertEqual(provider_response['Location'], self.register_page_url)
-        register_response = self.client.get(self.register_page_url)
-        tpa_context = register_response.context["data"]["third_party_auth"]
-        self.assertEqual(tpa_context["errorMessage"], None)
-        # Check that the "You've successfully signed into [PROVIDER_NAME]" message is shown.
-        self.assertEqual(tpa_context["currentProvider"], self.PROVIDER_NAME)
-        # Check that the data (e.g. email) from the provider is displayed in the form:
-        form_data = register_response.context['data']['registration_form_desc']
-        form_fields = {field['name']: field for field in form_data['fields']}
-        self.assertEqual(form_fields['email']['defaultValue'], self.USER_EMAIL)
-        self.assertEqual(form_fields['name']['defaultValue'], self.USER_NAME)
-        self.assertEqual(form_fields['username']['defaultValue'], self.USER_USERNAME)
-        for field_name, value in extra_defaults.items():
-            self.assertEqual(form_fields[field_name]['defaultValue'], value)
-        registration_values = {
-            'email': 'email-edited@tpa-test.none',
-            'name': 'My Customized Name',
-            'username': 'new_username',
-            'honor_code': True,
-        }
-        # Now complete the form:
-        ajax_register_response = self.client.post(
-            reverse('user_api_registration'),
-            registration_values
-        )
-        self.assertEqual(ajax_register_response.status_code, 200)
-        # Then the AJAX will finish the third party auth:
-        continue_response = self.client.get(tpa_context["finishAuthUrl"])
-        # And we should be redirected to the dashboard:
-        self.assertEqual(continue_response.status_code, 302)
-        self.assertEqual(continue_response['Location'], reverse('dashboard'))
-
-        # Now check that we can login again, whether or not we have yet verified the account:
-        self.client.logout()
-        self._test_return_login(user_is_activated=False)
-
-        self.client.logout()
-        self.verify_user_email('email-edited@tpa-test.none')
-        self._test_return_login(user_is_activated=True)
-
-    def test_login(self):
-        self.user = UserFactory.create()
-        # The user goes to the login page, and sees a button to login with this provider:
-        provider_login_url = self._check_login_page()
-        # The user clicks on the provider's button:
-        try_login_response = self.client.get(provider_login_url)
-        # The user should be redirected to the provider's login page:
-        self.assertEqual(try_login_response.status_code, 302)
-        complete_response = self.do_provider_login(try_login_response['Location'])
-        # We should be redirected to the login screen since this account is not linked to an edX account:
-        self.assertEqual(complete_response.status_code, 302)
-        self.assertEqual(complete_response['Location'], self.login_page_url)
-        login_response = self.client.get(self.login_page_url)
-        tpa_context = login_response.context["data"]["third_party_auth"]
-        self.assertEqual(tpa_context["errorMessage"], None)
-        # Check that the "You've successfully signed into [PROVIDER_NAME]" message is shown.
-        self.assertEqual(tpa_context["currentProvider"], self.PROVIDER_NAME)
-        # Now the user enters their username and password.
-        # The AJAX on the page will log them in:
-        ajax_login_response = self.client.post(
-            reverse('user_api_login_session'),
-            {'email': self.user.email, 'password': 'test'}
-        )
-        self.assertEqual(ajax_login_response.status_code, 200)
-        # Then the AJAX will finish the third party auth:
-        continue_response = self.client.get(tpa_context["finishAuthUrl"])
-        # And we should be redirected to the dashboard:
-        self.assertEqual(continue_response.status_code, 302)
-        self.assertEqual(continue_response['Location'], reverse('dashboard'))
-
-        # Now check that we can login again:
-        self.client.logout()
-        self._test_return_login()
-
-    def do_provider_login(self, provider_redirect_url):
-        """
-        mock logging in to the provider
-        Should end with loading self.complete_url, which should be returned
-        """
-        raise NotImplementedError
-
-    def _test_return_login(self, user_is_activated=True, previous_session_timed_out=False):
-        """ Test logging in to an account that is already linked. """
-        # Make sure we're not logged in:
-        dashboard_response = self.client.get(reverse('dashboard'))
-        self.assertEqual(dashboard_response.status_code, 302)
-        # The user goes to the login page, and sees a button to login with this provider:
-        provider_login_url = self._check_login_page()
-        # The user clicks on the provider's login button:
-        try_login_response = self.client.get(provider_login_url)
-        # The user should be redirected to the provider:
-        self.assertEqual(try_login_response.status_code, 302)
-        login_response = self.do_provider_login(try_login_response['Location'])
-        # If the previous session was manually logged out, there will be one weird redirect
-        # required to set the login cookie (it sticks around if the main session times out):
-        if not previous_session_timed_out:
-            self.assertEqual(login_response.status_code, 302)
-            self.assertEqual(login_response['Location'], self.complete_url + "?")
-            # And then we should be redirected to the dashboard:
-            login_response = self.client.get(login_response['Location'])
-            self.assertEqual(login_response.status_code, 302)
-        if user_is_activated:
-            url_expected = reverse('dashboard')
-        else:
-            url_expected = reverse('third_party_inactive_redirect') + '?next=' + reverse('dashboard')
-        self.assertEqual(login_response['Location'], url_expected)
-        # Now we are logged in:
-        dashboard_response = self.client.get(reverse('dashboard'))
-        self.assertEqual(dashboard_response.status_code, 200)
-
-    def _check_login_page(self):
-        """
-        Load the login form and check that it contains a button for the provider.
-        Return the URL for logging into that provider.
-        """
-        return self._check_login_or_register_page(self.login_page_url, "loginUrl")
-
-    def _check_register_page(self):
-        """
-        Load the registration form and check that it contains a button for the provider.
-        Return the URL for registering with that provider.
-        """
-        return self._check_login_or_register_page(self.register_page_url, "registerUrl")
-
-    def _check_login_or_register_page(self, url, url_to_return):
-        """ Shared logic for _check_login_page() and _check_register_page() """
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, 200)
-        self.assertIn(self.PROVIDER_NAME, response.content)
-        context_data = response.context['data']['third_party_auth']
-        provider_urls = {provider['id']: provider[url_to_return] for provider in context_data['providers']}
-        self.assertIn(self.PROVIDER_ID, provider_urls)
-        return provider_urls[self.PROVIDER_ID]
-
-    @property
-    def complete_url(self):
-        """ Get the auth completion URL for this provider """
-        return reverse('social:complete', kwargs={'backend': self.PROVIDER_BACKEND})
-
-
-@unittest.skipUnless(
-    testutil.AUTH_FEATURES_KEY in django_settings.FEATURES, testutil.AUTH_FEATURES_KEY + ' not in settings.FEATURES')
-@django_utils.override_settings()  # For settings reversion on a method-by-method basis.
-class IntegrationTest(testutil.TestCase, test.TestCase):
-    """Abstract base class for provider integration tests."""
-
-    # Override setUp and set this:
     provider = None
-
-    # Methods you must override in your children.
-
-    def get_response_data(self):
-        """Gets a dict of response data of the form given by the provider.
-
-        To determine what the provider returns, drop into a debugger in your
-        provider's do_auth implementation. Providers may merge different kinds
-        of data (for example, data about the user and data about the user's
-        credentials).
-        """
-        raise NotImplementedError
-
-    def get_username(self):
-        """Gets username based on response data from a provider.
-
-        Each provider has different logic for username generation. Sadly,
-        this is not extracted into its own method in python-social-auth, so we
-        must provide a getter ourselves.
-
-        Note that this is the *initial* value the framework will attempt to use.
-        If it collides, the pipeline will generate a new username. We extract
-        it here so we can force collisions in a polymorphic way.
-        """
-        raise NotImplementedError
-
-    # Asserts you can optionally override and make more specific.
 
     def assert_redirect_to_provider_looks_correct(self, response):
         """Asserts the redirect to the provider's site looks correct.
@@ -273,18 +69,6 @@ class IntegrationTest(testutil.TestCase, test.TestCase):
         for prepopulated_form_data in form_field_data:
             if prepopulated_form_data in required_fields:
                 self.assertIn(form_field_data[prepopulated_form_data], response.content.decode('utf-8'))
-
-    # Implementation details and actual tests past this point -- no more
-    # configuration needed.
-
-    def setUp(self):
-        super(IntegrationTest, self).setUp()
-        self.request_factory = test.RequestFactory()
-
-    @property
-    def backend_name(self):
-        """ Shortcut for the backend name """
-        return self.provider.backend_name
 
     # pylint: disable=invalid-name
     def assert_account_settings_context_looks_correct(self, context, duplicate=False, linked=None):
@@ -453,6 +237,44 @@ class IntegrationTest(testutil.TestCase, test.TestCase):
         self.assertEqual(1, len(social_auths))
         self.assertEqual(self.backend_name, social_auths[0].provider)
 
+    def assert_logged_in_cookie_redirect(self, response):
+        """Verify that the user was redirected in order to set the logged in cookie. """
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(
+            response["Location"],
+            pipeline.get_complete_url(self.provider.backend_name)
+        )
+        self.assertEqual(response.cookies[django_settings.EDXMKTG_LOGGED_IN_COOKIE_NAME].value, 'true')
+        self.assertIn(django_settings.EDXMKTG_USER_INFO_COOKIE_NAME, response.cookies)
+
+    def get_response_data(self):
+        """Gets a dict of response data of the form given by the provider.
+
+        To determine what the provider returns, drop into a debugger in your
+        provider's do_auth implementation. Providers may merge different kinds
+        of data (for example, data about the user and data about the user's
+        credentials).
+        """
+        raise NotImplementedError
+
+    def get_username(self):
+        """Gets username based on response data from a provider.
+
+        Each provider has different logic for username generation. Sadly,
+        this is not extracted into its own method in python-social-auth, so we
+        must provide a getter ourselves.
+
+        Note that this is the *initial* value the framework will attempt to use.
+        If it collides, the pipeline will generate a new username. We extract
+        it here so we can force collisions in a polymorphic way.
+        """
+        raise NotImplementedError
+
+    @property
+    def backend_name(self):
+        """ Shortcut for the backend name """
+        return self.provider.backend_name
+
     def create_user_models_for_existing_account(self, strategy, email, password, username, skip_social_auth=False):
         """Creates user, profile, registration, and (usually) social auth.
 
@@ -546,22 +368,199 @@ class IntegrationTest(testutil.TestCase, test.TestCase):
         """Gets a user by email, using the given strategy."""
         return strategy.storage.user.user_model().objects.get(email=email)
 
-    def assert_logged_in_cookie_redirect(self, response):
-        """Verify that the user was redirected in order to set the logged in cookie. """
-        self.assertEqual(response.status_code, 302)
-        self.assertEqual(
-            response["Location"],
-            pipeline.get_complete_url(self.provider.backend_name)
-        )
-        self.assertEqual(response.cookies[django_settings.EDXMKTG_LOGGED_IN_COOKIE_NAME].value, 'true')
-        self.assertIn(django_settings.EDXMKTG_USER_INFO_COOKIE_NAME, response.cookies)
-
     def set_logged_in_cookies(self, request):
         """Simulate setting the marketing site cookie on the request. """
         request.COOKIES[django_settings.EDXMKTG_LOGGED_IN_COOKIE_NAME] = 'true'
         request.COOKIES[django_settings.EDXMKTG_USER_INFO_COOKIE_NAME] = json.dumps({
             'version': django_settings.EDXMKTG_USER_INFO_COOKIE_VERSION,
         })
+
+class IntegrationTestMixin(testutil.TestCase, test.TestCase, HelperMixin):
+    """
+    Mixin base class for third_party_auth integration tests.
+    This class is newer and simpler than the 'IntegrationTest' alternative below, but it is
+    currently less comprehensive. Some providers are tested with this, others with
+    IntegrationTest.
+    """
+    # Provider information:
+    PROVIDER_NAME = "override"
+    PROVIDER_BACKEND = "override"
+    PROVIDER_ID = "override"
+    # Information about the user expected from the provider:
+    USER_EMAIL = "override"
+    USER_NAME = "override"
+    USER_USERNAME = "override"
+
+    def setUp(self):
+        super(IntegrationTestMixin, self).setUp()
+
+        self.request_factory = test.RequestFactory()
+        self.login_page_url = reverse('signin_user')
+        self.register_page_url = reverse('register_user')
+        patcher = testutil.patch_mako_templates()
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        # Override this method in a subclass and enable at least one provider.
+
+    def _test_register(self, **extra_defaults):
+        # The user goes to the register page, and sees a button to register with the provider:
+        provider_register_url = self._check_register_page()
+        # The user clicks on the Dummy button:
+        try_login_response = self.client.get(provider_register_url)
+        # The user should be redirected to the provider's login page:
+        self.assertEqual(try_login_response.status_code, 302)
+        provider_response = self.do_provider_login(try_login_response['Location'])
+        # We should be redirected to the register screen since this account is not linked to an edX account:
+        self.assertEqual(provider_response.status_code, 302)
+        self.assertEqual(provider_response['Location'], self.register_page_url)
+        register_response = self.client.get(self.register_page_url)
+        tpa_context = register_response.context["data"]["third_party_auth"]
+        self.assertEqual(tpa_context["errorMessage"], None)
+        # Check that the "You've successfully signed into [PROVIDER_NAME]" message is shown.
+        self.assertEqual(tpa_context["currentProvider"], self.PROVIDER_NAME)
+        # Check that the data (e.g. email) from the provider is displayed in the form:
+        form_data = register_response.context['data']['registration_form_desc']
+        form_fields = {field['name']: field for field in form_data['fields']}
+        self.assertEqual(form_fields['email']['defaultValue'], self.USER_EMAIL)
+        self.assertEqual(form_fields['name']['defaultValue'], self.USER_NAME)
+        self.assertEqual(form_fields['username']['defaultValue'], self.USER_USERNAME)
+        for field_name, value in extra_defaults.items():
+            self.assertEqual(form_fields[field_name]['defaultValue'], value)
+        registration_values = {
+            'email': 'email-edited@tpa-test.none',
+            'name': 'My Customized Name',
+            'username': 'new_username',
+            'honor_code': True,
+        }
+        # Now complete the form:
+        ajax_register_response = self.client.post(
+            reverse('user_api_registration'),
+            registration_values
+        )
+        self.assertEqual(ajax_register_response.status_code, 200)
+        # Then the AJAX will finish the third party auth:
+        continue_response = self.client.get(tpa_context["finishAuthUrl"])
+        # And we should be redirected to the dashboard:
+        self.assertEqual(continue_response.status_code, 302)
+        self.assertEqual(continue_response['Location'], reverse('dashboard'))
+
+        # Now check that we can login again, whether or not we have yet verified the account:
+        self.client.logout()
+        self._test_return_login(user_is_activated=False)
+
+        self.client.logout()
+        self.verify_user_email('email-edited@tpa-test.none')
+        self._test_return_login(user_is_activated=True)
+
+    def _test_login(self):
+        self.user = UserFactory.create()
+        # The user goes to the login page, and sees a button to login with this provider:
+        provider_login_url = self._check_login_page()
+        # The user clicks on the provider's button:
+        try_login_response = self.client.get(provider_login_url)
+        # The user should be redirected to the provider's login page:
+        self.assertEqual(try_login_response.status_code, 302)
+        complete_response = self.do_provider_login(try_login_response['Location'])
+        # We should be redirected to the login screen since this account is not linked to an edX account:
+        self.assertEqual(complete_response.status_code, 302)
+        self.assertEqual(complete_response['Location'], self.login_page_url)
+        login_response = self.client.get(self.login_page_url)
+        tpa_context = login_response.context["data"]["third_party_auth"]
+        self.assertEqual(tpa_context["errorMessage"], None)
+        # Check that the "You've successfully signed into [PROVIDER_NAME]" message is shown.
+        self.assertEqual(tpa_context["currentProvider"], self.PROVIDER_NAME)
+        # Now the user enters their username and password.
+        # The AJAX on the page will log them in:
+        ajax_login_response = self.client.post(
+            reverse('user_api_login_session'),
+            {'email': self.user.email, 'password': 'test'}
+        )
+        self.assertEqual(ajax_login_response.status_code, 200)
+        # Then the AJAX will finish the third party auth:
+        continue_response = self.client.get(tpa_context["finishAuthUrl"])
+        # And we should be redirected to the dashboard:
+        self.assertEqual(continue_response.status_code, 302)
+        self.assertEqual(continue_response['Location'], reverse('dashboard'))
+
+        # Now check that we can login again:
+        self.client.logout()
+        self._test_return_login()
+
+    def do_provider_login(self, provider_redirect_url):
+        """
+        mock logging in to the provider
+        Should end with loading self.complete_url, which should be returned
+        """
+        raise NotImplementedError
+
+    def _test_return_login(self, user_is_activated=True, previous_session_timed_out=False):
+        """ Test logging in to an account that is already linked. """
+        # Make sure we're not logged in:
+        dashboard_response = self.client.get(reverse('dashboard'))
+        self.assertEqual(dashboard_response.status_code, 302)
+        # The user goes to the login page, and sees a button to login with this provider:
+        provider_login_url = self._check_login_page()
+        # The user clicks on the provider's login button:
+        try_login_response = self.client.get(provider_login_url)
+        # The user should be redirected to the provider:
+        self.assertEqual(try_login_response.status_code, 302)
+        login_response = self.do_provider_login(try_login_response['Location'])
+        # If the previous session was manually logged out, there will be one weird redirect
+        # required to set the login cookie (it sticks around if the main session times out):
+        if not previous_session_timed_out:
+            self.assertEqual(login_response.status_code, 302)
+            self.assertEqual(login_response['Location'], self.complete_url + "?")
+            # And then we should be redirected to the dashboard:
+            login_response = self.client.get(login_response['Location'])
+            self.assertEqual(login_response.status_code, 302)
+        if user_is_activated:
+            url_expected = reverse('dashboard')
+        else:
+            url_expected = reverse('third_party_inactive_redirect') + '?next=' + reverse('dashboard')
+        self.assertEqual(login_response['Location'], url_expected)
+        # Now we are logged in:
+        dashboard_response = self.client.get(reverse('dashboard'))
+        self.assertEqual(dashboard_response.status_code, 200)
+
+    def _check_login_page(self):
+        """
+        Load the login form and check that it contains a button for the provider.
+        Return the URL for logging into that provider.
+        """
+        return self._check_login_or_register_page(self.login_page_url, "loginUrl")
+
+    def _check_register_page(self):
+        """
+        Load the registration form and check that it contains a button for the provider.
+        Return the URL for registering with that provider.
+        """
+        return self._check_login_or_register_page(self.register_page_url, "registerUrl")
+
+    def _check_login_or_register_page(self, url, url_to_return):
+        """ Shared logic for _check_login_page() and _check_register_page() """
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(self.PROVIDER_NAME, response.content)
+        context_data = response.context['data']['third_party_auth']
+        provider_urls = {provider['id']: provider[url_to_return] for provider in context_data['providers']}
+        self.assertIn(self.PROVIDER_ID, provider_urls)
+        return provider_urls[self.PROVIDER_ID]
+
+    @property
+    def complete_url(self):
+        """ Get the auth completion URL for this provider """
+        return reverse('social:complete', kwargs={'backend': self.PROVIDER_BACKEND})
+
+
+@unittest.skipUnless(
+    testutil.AUTH_FEATURES_KEY in django_settings.FEATURES, testutil.AUTH_FEATURES_KEY + ' not in settings.FEATURES')
+@django_utils.override_settings()  # For settings reversion on a method-by-method basis.
+class IntegrationTest(testutil.TestCase, test.TestCase, HelperMixin):
+    """Abstract base class for provider integration tests."""
+
+    def setUp(self):
+        super(IntegrationTest, self).setUp()
+        self.request_factory = test.RequestFactory()
 
     # Actual tests, executed once per child.
 

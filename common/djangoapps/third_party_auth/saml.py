@@ -122,13 +122,17 @@ class SAMLAuthBackend(SAMLAuth):  # pylint: disable=abstract-method
         from . import pipeline, provider
         running_pipeline = pipeline.get(self.strategy.request)
         provider_id = provider.Registry.get_from_pipeline(running_pipeline).provider_id
-        user_email = self.strategy.request.user.email
+        try:
+            user_email = kwargs.get('user').email
+        except AttributeError:
+            user_email = None
+
         try:
             enterprise_customer_idp = EnterpriseCustomerIdentityProvider.objects.get(provider_id=provider_id)
         except EnterpriseCustomerIdentityProvider.DoesNotExist:
             enterprise_customer_idp = None
 
-        if enterprise_customer_idp:
+        if enterprise_customer_idp and user_email:
             try:
                 # Unlink user email from Enterprise Customer.
                 EnterpriseCustomerUser.objects.unlink_user(
