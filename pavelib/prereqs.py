@@ -12,6 +12,7 @@ from paver.easy import BuildFailure, sh, task
 
 from .utils.envs import Env
 from .utils.timer import timed
+from .utils.decorators import timeout, TimeoutException
 
 PREREQS_STATE_DIR = os.getenv('PREREQ_CACHE_DIR', Env.REPO_ROOT / '.prereqs_cache')
 NO_PREREQ_MESSAGE = "NO_PREREQ_INSTALL is set, not installing prereqs"
@@ -121,6 +122,7 @@ def prereq_cache(cache_name, paths, install_func):
         print '{cache} unchanged, skipping...'.format(cache=cache_name)
 
 
+@timeout(limit=10)
 def node_prereqs_installation():
     """
     Configures npm and installs Node prerequisites
@@ -173,7 +175,11 @@ def install_node_prereqs():
         print NO_PREREQ_MESSAGE
         return
 
-    prereq_cache("Node prereqs", ["package.json"], node_prereqs_installation)
+    try:
+        prereq_cache("Node prereqs", ["package.json"], node_prereqs_installation)
+    except TimeoutException:
+        print "NPM TIMED OUT!!!"
+        sys.exit(1)
 
 
 # To add a package to the uninstall list, just add it to this list! No need
