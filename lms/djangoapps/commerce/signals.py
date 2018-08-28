@@ -9,7 +9,7 @@ from django.contrib.auth.models import AnonymousUser
 from django.dispatch import receiver
 
 from openedx.core.djangoapps.commerce.utils import is_commerce_service_configured
-from openedx.core.djangoapps.request_cache.middleware import RequestCache
+from openedx.core.djangoapps.request_cache import get_request
 from student.signals import REFUND_ORDER
 from .utils import refund_seat
 
@@ -56,5 +56,5 @@ def get_request_user():
     If the requester of an unenrollment is not the same person as the student
     being unenrolled, we authenticate to the commerce service as the requester.
     """
-    request = RequestCache.get_current_request()
+    request = get_request()
     return getattr(request, 'user', None)

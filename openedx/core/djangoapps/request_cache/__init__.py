@@ -12,6 +12,7 @@ from celery.signals import task_postrun
 import crum
 from django.conf import settings
 from django.test.client import RequestFactory
+from edx_django_utils.cache import RequestCache
 
 from openedx.core.djangoapps.request_cache import middleware
 
@@ -26,7 +27,7 @@ def clear_request_cache(**kwargs):  # pylint: disable=unused-argument
     prevent memory leaks.
     """
     if getattr(settings, 'CLEAR_REQUEST_CACHE_ON_TASK_COMPLETION', True):
-        middleware.RequestCache.clear_request_cache()
+        RequestCache.clear_all_namespaces()
 
 
 def get_cache(name):
@@ -38,7 +39,7 @@ def get_cache(name):
 
     Returns: dict
     """
-    return middleware.RequestCache.get_request_cache(name)
+    return RequestCache(name)
 
 
 def clear_cache(name):
@@ -48,7 +49,7 @@ def clear_cache(name):
     Arguments:
         name (str): The name of the request cache to clear
     """
-    return middleware.RequestCache.clear_request_cache(name)
+    RequestCache(name).clear()
 
 
 def get_request():
