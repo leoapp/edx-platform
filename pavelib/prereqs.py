@@ -122,7 +122,7 @@ def prereq_cache(cache_name, paths, install_func):
         print '{cache} unchanged, skipping...'.format(cache=cache_name)
 
 
-@timeout(mylimit=10)
+@timeout(limit=10)
 def node_prereqs_installation():
     """
     Configures npm and installs Node prerequisites
