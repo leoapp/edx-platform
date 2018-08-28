@@ -122,7 +122,7 @@ def prereq_cache(cache_name, paths, install_func):
         print '{cache} unchanged, skipping...'.format(cache=cache_name)
 
 
-@timeout(limit=10)
+@timeout(mylimit=10)
 def node_prereqs_installation():
     """
     Configures npm and installs Node prerequisites
@@ -134,7 +134,7 @@ def node_prereqs_installation():
         npm_log_file = '{}/npm-install.{}.log'.format(Env.GEN_LOG_DIR, shard_str)
     else:
         npm_log_file = '{}/npm-install.log'.format(Env.GEN_LOG_DIR)
-    npm_command = 'npm install --progress=false &> {}'.format(npm_log_file)
+    npm_command = 'npm install --verbose &> {}'.format(npm_log_file)
 
     cb_error_text = "Subprocess return code: 1"
 
