@@ -375,6 +375,7 @@ class HelperMixin(object):
             'version': django_settings.EDXMKTG_USER_INFO_COOKIE_VERSION,
         })
 
+
 class IntegrationTestMixin(testutil.TestCase, test.TestCase, HelperMixin):
     """
     Mixin base class for third_party_auth integration tests.
